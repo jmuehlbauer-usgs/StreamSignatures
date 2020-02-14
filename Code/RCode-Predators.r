@@ -19,11 +19,11 @@ isos.mega4 <- read.csv('Data/IsotopeMega4forGoodBadFig.csv', row.names = 1)
 breaks <- read.csv('Data/Breaks.csv')
 	## Comes from field notes about locations of geographic or vegetated breaks.
 	
-## Load packages
+## Load packages and functions
 source('https://github.com/jmuehlbauer-usgs/R-packages/blob/master/packload.r?raw=TRUE')
 #packload(c('MuMIn', 'nlme', 'png'))
 source('https://github.com/jmuehlbauer-usgs/R-packages/blob/master/trueAIC.r?raw=TRUE')
-source('Code/RCode-StreamSignatureFunction.r')
+source('Code/signatures.r')
 source('Code/RCode-PlottingFunction.r')
 
 
@@ -47,7 +47,7 @@ env00$Order<-as.factor(env00$Order)
 env.sites2<-env00[env00$Site=='BALL1'|env00$Site=='COWE1'|env00$Site=='LTEN1',]
 	env.sites2$Site<-c('BALL2','BALL2','COWE2','COWE2','LTEN2')
 env0<-rbind(env00,env.sites2)
-
+###Need to make Order a factor!
 
 ##### Combine env data to abundance table #####
 bugs3<-bugs2
