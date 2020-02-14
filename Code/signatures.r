@@ -52,7 +52,7 @@ signatures <- function(dat, effVar, distVar, siteVar, otherVars){
 	l3 <- l2[names(l2) %in% c('Overall', rownames(out1)[which(rownames(out1) == 'Distance') : dim(out1)[1]])]
 	## Get confidence intervals
 	l4 <- lapply(l3, function(x){
-		c1 <- confint(x, level = 0.5)[c(-1, -2),]
+		c1 <- suppressMessages(confint(x, level = 0.5)[c(-1, -2),])
 		e1 <- fixef(x)
 		c2 <- cbind(c1[, 1], e1, c1[, 2])
 			colnames(c2) <- c('Lower', 'Estimate', 'Upper')
