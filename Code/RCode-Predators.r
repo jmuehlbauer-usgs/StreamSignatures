@@ -8,9 +8,9 @@
 setwd('C:/Users/jmuehlbauer/Documents/Projects/Subsidies/StreamSignatureFieldAnalysis')
 
 ## Read in data
-raw1 <- read.csv('Data/CSVBugs.csv', header = TRUE, na.strings = c('n/a', ' ', '#N/A'))
+raw1 <- read.csv('Data/CSVBugs.csv', header = TRUE, na.strings = c('n/a', ' ', '#N/A', '--'))
 	## Data exported from "CSVBugs" tab in "Data/SignatureDatasheet.xlsm".
-env00 <- read.csv('Data/AllSites.csv', header = TRUE, na.strings = c('n/a', 'N/A', '#N/A'))
+env1 <- read.csv('Data/AllSites.csv', header = TRUE, na.strings = c('n/a', 'N/A', '#N/A'))
 	## Comes from field notes about site characteristics.
 islandsXS <- read.csv('Data/IslandsCrossSections.csv', header = TRUE, na.strings = c(' '))
 	## Comes from field surveys of sites with multiple channels.
@@ -30,39 +30,52 @@ source('Code/RCode-PlottingFunction.r')
 ##### Create bugs dataframe #####
 
 ## Remove ground sampling sites without specific locations
-bugs1<-raw1[raw1$Bank!='ALL'&raw1$Group!='--',]
-	bugs1<-droplevels(bugs1)
+bugs1 <- raw1[raw1$Bank != 'ALL' & !is.na(raw1$Group),]
+	bugs1 <- droplevels(bugs1)
 
 ## Convert Aq distances to NAs
-bugs1$Dist<-suppressWarnings(as.numeric(as.character(bugs1$Dist)))
+bugs1$Dist[bugs1$Dist == 'Aq'] <- NA
+	bugs1$Dist <- as.numeric(as.character(bugs1$Dist))
 
 ## Add trophic level
-bugs2<-bugs1
-	bugs2$Trophic<-rep(4,dim(bugs2)[1])
-bugs2$Trophic<-ifelse(substr(bugs2$Group,1,2)=='Pr',2,ifelse(substr(bugs2$Group,1,2)=='He',1,ifelse(substr(bugs2$Group,3,6)=='Detr',0,ifelse(bugs2$Group=='AqAlga',0,1.5))))
+bugs2 <- bugs1
+	bugs2$Trophic <- rep(NA, dim(bugs2)[1])
+trop <- substr(bugs2$Group, 1, 2)
+bugs1$Trophic <- ifelse(trop == 'Pr', 2, ifelse(trop == 'He', 1, 
+	ifelse(trop == 'Detr' | bugs2$Group == 'AqAlga', 0, 1.5)))
 
 			
 ##### Clean up env datasheet #####
-env00$Order<-as.factor(env00$Order)
-env.sites2<-env00[env00$Site=='BALL1'|env00$Site=='COWE1'|env00$Site=='LTEN1',]
-	env.sites2$Site<-c('BALL2','BALL2','COWE2','COWE2','LTEN2')
-env0<-rbind(env00,env.sites2)
-###Need to make Order a factor!
+
+## Set stream order to a factor
+env1$Order <- as.factor(env1$Order)
+
+## Add sites for subset sites with similar conditions
+esites <- env1[env1$Site == 'BALL1' | env1$Site == 'COWE1' | env1$Site == 'LTEN1',]
+	esites$Site<-c('BALL2', 'BALL2', 'COWE2', 'COWE2', 'LTEN2')
+	
+## Rename columns
+env2 <- rbind(env1, esites)
+	colnames(env2) <- c('Site', 'Bank', 'Region', 'Width', 'Order', 'OrderClass', 'Geomorph', 'BankType', 
+		'VegFlood', 'VegUp', 'VegShift', 'Location')
+
 
 ##### Combine env data to abundance table #####
-bugs3<-bugs2
-m1<-match(substr(bugs3[,2],1,5),env0[,1])
-	bugs3$Region<-env0$Region[m1]
-	bugs3$Width<-env0$Channel.width[m1]
-	bugs3$WidthClass<-env0$Width.class[m1]		
-	bugs3$Order<-env0$Order[m1]
-	bugs3$OrderClass<-env0$Order.class[m1]
-	bugs3$Geomorph<-env0$Geomorphology[m1]
-m2<-match(paste(substr(bugs3$Site,1,5),substr(bugs3$Bank,1,1)),paste(env0$Site,substr(env0$Bank,1,1)))	
-	bugs3$Banks<-env0$Bank.type[m2]
-	bugs3$VegFld<-env0$Floodplain.vegetation[m2]
-	bugs3$VegUp<-env0$Upland.vegetation[m2]
-	bugs3$VegShift<-env0$Vegetation.shift[m2]
+
+### STOPPED HERE.
+bugs2<-bugs1
+m1<-match(substr(bugs2[,2],1,5),env2[,1])
+	bugs2$Region<-env2$Region[m1]
+	bugs2$Width<-env2$Channel.width[m1]
+	bugs2$WidthClass<-env2$Width.class[m1]		
+	bugs2$Order<-env2$Order[m1]
+	bugs2$OrderClass<-env2$Order.class[m1]
+	bugs2$Geomorph<-env2$Geomorphology[m1]
+m2<-match(paste(substr(bugs2$Site,1,5),substr(bugs2$Bank,1,1)),paste(env2$Site,substr(env2$Bank,1,1)))	
+	bugs2$Banks<-env2$Bank.type[m2]
+	bugs2$VegFld<-env2$Floodplain.vegetation[m2]
+	bugs2$VegUp<-env2$Upland.vegetation[m2]
+	bugs2$VegShift<-env2$Vegetation.shift[m2]
 
 ##### Create datasheet for plotting and analysis #####
 	
