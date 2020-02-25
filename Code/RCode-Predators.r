@@ -18,37 +18,47 @@ isos.mega4 <- read.csv('Data/IsotopeMega4forGoodBadFig.csv', row.names = 1)
 	## Written by "Code/RCode-Isotopes.r".
 breaks <- read.csv('Data/Breaks.csv')
 	## Comes from field notes about locations of geographic or vegetated breaks.
-	
-## Load packages and functions
-source('https://github.com/jmuehlbauer-usgs/R-packages/blob/master/packload.r?raw=TRUE')
+
+## Set GitHub path, prep function for offline loading
+offline <- as.logical(system(paste("ping -n 1", 'www.google.com'), show.output.on.console = FALSE))
+path <- ifelse(offline == TRUE, 'C:/Users/jmuehlbauer/Documents/R/Custom/',
+	'https://github.com/jmuehlbauer-usgs/R-packages/blob/master/')
+suffix <- ifelse(offline == TRUE, '.r', '.r?raw=TRUE')
+
+## Load functions and packages
+loadem <- lapply(list('packload', 'trueAIC'), function(x){
+	source(paste0(path, x, suffix))
+})
 #packload(c('MuMIn', 'nlme', 'png'))
-source('https://github.com/jmuehlbauer-usgs/R-packages/blob/master/trueAIC.r?raw=TRUE')
 source('Code/signatures.r')
 source('Code/RCode-PlottingFunction.r')
 
 
 ##### Create bugs dataframe #####
 
-## Remove ground sampling sites without specific locations
+## Remove ground sampling sites without specific locations and counts without taxon IDs
 bugs1 <- raw1[raw1$Bank != 'ALL' & !is.na(raw1$Group),]
 	bugs1 <- droplevels(bugs1)
 
-## Convert Aq distances to NAs
+## Convert Aq distances to NAs, distances to numeric
 bugs1$Dist[bugs1$Dist == 'Aq'] <- NA
 	bugs1$Dist <- as.numeric(as.character(bugs1$Dist))
 
 ## Add trophic level
-bugs2 <- bugs1
-	bugs2$Trophic <- rep(NA, dim(bugs2)[1])
-trop <- substr(bugs2$Group, 1, 2)
+trop <- substr(bugs1$Group, 1, 2)
 bugs1$Trophic <- ifelse(trop == 'Pr', 2, ifelse(trop == 'He', 1, 
-	ifelse(trop == 'Detr' | bugs2$Group == 'AqAlga', 0, 1.5)))
+	ifelse(trop == 'Detr' | bugs1$Group == 'AqAlga', 0, 1.5)))
 
+## Drop Code column, rename Dist and Abund columns
+bugs2 <- subset(bugs1, select = -Code)
+colnames(bugs2)[which(colnames(bugs2) %in% c('Dist', 'Abund'))] <- c('Distance', 'Abundance')
+			
 			
 ##### Clean up env datasheet #####
 
-## Set stream order to a factor
+## Set stream order and banks to factors
 env1$Order <- as.factor(env1$Order)
+env1$Bank <- as.factor(ifelse(env1$Bank == 'Left', 'LB', 'RB'))
 
 ## Add sites for subset sites with similar conditions
 esites <- env1[env1$Site == 'BALL1' | env1$Site == 'COWE1' | env1$Site == 'LTEN1',]
@@ -56,14 +66,33 @@ esites <- env1[env1$Site == 'BALL1' | env1$Site == 'COWE1' | env1$Site == 'LTEN1
 	
 ## Rename columns
 env2 <- rbind(env1, esites)
-	colnames(env2) <- c('Site', 'Bank', 'Region', 'Width', 'Order', 'OrderClass', 'Geomorph', 'BankType', 
-		'VegFlood', 'VegUp', 'VegShift', 'Location')
+	colnames(env2) <- c('Site', 'Bank', 'Region', 'Width', 'Order', 'OrderClass', 'Geomorph', 'BankType', 'VegFlood', 'VegUp', 'VegShift', 'Location')
+
+## Add rows for in-stream samples
+aqs <- env2[unique(match(env2$Site, levels(env2$Site))),]
+	aqs$Bank <- 'AQ'
+	aqs[, c('BankType', 'VegFlood', 'VegUp', 'VegShift')] <- NA
+env3 <- rbind(env2, aqs)
+
+## Order by region, then site, then bank
+env3 <- env3[order(env3$Region, env3$Site, env3$Bank),]
 
 
-##### Combine env data to abundance table #####
+##### Combine env data with abundance table #####
 
-### STOPPED HERE.
+## Create key
+bugs1$Key <- paste0(bugs1$Site, bugs1$Bank)
+env3$Key <- paste0(env3$Site, env3$Bank)
+bugs2 <- merge(bugs1, env3, by = 'Key', all = TRUE)
 bugs2<-bugs1
+### STOPPED HERE. Above 20-ish lines are in progress.
+	## Need to figure out how/if to do merge, given Aq samples and island sites
+		##(FELL1.1, etc). Did I assess bank steepness and veg on island bars?
+	## Final merged datasheet should have same # of rows as bugs1.
+	## Also, why does env3 have double rows for Aq sites?
+	## Need to re-order factor levels for site after adding esites.
+
+
 m1<-match(substr(bugs2[,2],1,5),env2[,1])
 	bugs2$Region<-env2$Region[m1]
 	bugs2$Width<-env2$Channel.width[m1]
