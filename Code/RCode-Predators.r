@@ -114,7 +114,7 @@ mega2 <- mega1[mega1$Bank != 'AQ' & !(is.na(mega1$Distance)),]
 aq1 <- mega1[mega1$Bank == 'AQ' | is.na(mega1$Distance),]
 	aq1 <- droplevels(aq1)
 
-## Assign true conditions to braided islands, remove internal braids
+## Assign true bank/veg conditions to braided islands, remove internal braids
 sb1 <- paste0(mega2$Site, mega2$Bank)
 ext1 <- c('CORN1.1RB', 'CORN1.6LB', 'DANU1.2RB', 'ELBE1.2LB', 'FELL1.1RB', 'ISLA1.1RB', 'ISLA1.7LB',
 	'RESI1.1RB', 'RESI1.2LB', 'RESI5.1RB', 'RESI5.2LB')
@@ -126,31 +126,49 @@ br1 <- mega2[sb1 %in% int1,]
 	br1 <- droplevels(br1)
 isla1 <- mega2[nchar(sb1) > 7,]
 	isla1 <- droplevels(isla1)
-### STOPPED HERE.
 
-
-## Get rid of non-predator groups and night/malaise/ground sampling
-mega3<-droplevels(mega2.1[mega2.1$Trophic==2&mega2.1$Method!='Night Sampling'&mega2.1$Method!='Malaise'&mega2.1$Method!='Ground',])
+## Get rid of night/malaise/ground sampling
+	## These are poorly quantifiable (more a CPUE than a density), and only 159/3547 samples anyway.
+mega4 <- mega3[!mega3$Method %in% c('Night Sampling', 'Malaise', 'Ground'),]
 
 ## Add sweeps to each pitfall/bowl replicate
-mega3Swp<-droplevels(mega3[mega3$Method=='Sweep'&mega3$Abund>0,])
-	sumsAbund<-tapply(mega3Swp$Abund,mega3Swp$Code,sum)
-	sumsBiomass<-tapply(mega3Swp$Biomass,mega3Swp$Code,sum)
-mega4PitBowl<-mega3[mega3$Method=='Pitfall'|mega3$Method=='Bowl',]
-mega4Swp<-mega3Swp[mega3Swp$Code%in%mega4PitBowl$Code==FALSE,]
-mega4<-rbind(mega4PitBowl,mega4Swp)
-	mega4$Abund<-ifelse(is.na(match(mega4$Code,names(sumsAbund))),mega4$Abund,mega4$Abund+sumsAbund[match(mega4$Code,names(sumsAbund))])
-	mega4$Biomass<-ifelse(is.na(match(mega4$Code,names(sumsBiomass))),mega4$Biomass,mega4$Biomass+sumsBiomass[match(mega4$Code,names(sumsBiomass))])
-	mega4<-droplevels(subset(mega4,select=-Method))
-		rownames(mega4)<-c(1:dim(mega4)[1])
-		
-## Create some data columns for future use
-mega4$shortSite<-as.factor(substr(mega4$Site,1,5))
-mega4$SiteBank<-as.factor(paste(mega4$shortSite,mega4$Bank,sep=''))
-mega4$AbBiom<-ifelse(mega4$Site=='BALL2'|mega4$Site=='COWE2'|mega4$Site=='LTEN2',mega4$Abund,mega4$Abund*mega4$Biomass)
+	## Within a site, took a sweep at Pitfall locations if the habitat was available.
+	## Thus, any missing sweeps should be interpreted as 0s, not NA (so they can be added to pitfalls).
+	## Distribute entire contents of sweep to every pitfall replicate (don't do proportions).
+mega4$Code <- with(mega4, paste0(SiteBank, Distance, Group))
+pibo1 <- with(mega4, mega4[Method %in% c('Pitfall', 'Bowl'),])
+swee1 <- with(mega4, mega4[Method == 'Sweep' & Abundance > 0 & Code %in% pibo1$Code,])
+swee2 <- with(mega4, mega4[Method == 'Sweep' & Abundance > 0 & !Code %in% pibo1$Code,])
+abun1 <- swee1$Abundance[match(pibo1$Code, swee1$Code)]
+	abun1[is.na(abun1)] <- 0
+biom1 <- swee1$Biomass[match(pibo1$Code, swee1$Code)]
+	biom1[is.na(biom1)] <- 0
+pibo2 <- pibo1
+	pibo2$Abundance <- pibo1$Abundance + abun1
+	pibo2$Biomass <- pibo1$Biomass + biom1
+mega5 <- rbind(pibo2, swee2)
 
-## Remove NA rows in biomass and HawR, MudC, LTEN2, COWE2, BALL2
-mega5<-droplevels(mega4[!is.na(mega4$Biomass)&!is.na(mega4$AbBiom)&mega4$Site!='HAWR1'&mega4$Site!='MUDC1'&mega4$Site!='BALL2'&mega4$Site!='COWE2'&mega4$Site!='LTEN2',])
+## Reorder by site, then bank, distance, group, replicate.
+mega5 <- with(mega5, mega5[order(Site, Bank, Distance, Group, Replicate),])
+
+## Remove NA biomass rows and "2" subset sites (and Mud Creek and Haw River, if needed)
+mega6 <- mega5[!is.na(mega5$Biomass) & !mega5$Site %in% c('BALL2', 'COWE2', 'LTEN2', 'HAWR1', 'MUDC1'),]
+	
+## Create Abundance*Biomass column
+mega6$AbBiom <- mega6$Abundance * mega6$Biomass
+
+## Re-order columns, remove unnecessary rows
+mega7 <- mega6[, c('SiteBank', 'Site', 'Bank', 'Distance', 'Group', 'Trophic', 'Abundance', 
+	'Biomass', 'AbBiom', 'Region', 'Width', 'Order', 'OrderClass', 'Geomorph', 'BankType', 
+	'VegFlood', 'VegUp', 'VegShift')]
+	mega7 <- droplevels(mega7)
+	
+## Get only predators
+pred1 <- mega7[mega7$Trophic == 2,]
+	pred1 <- droplevels(pred1)
+### STOPPED HERE.		
+
+
 
 
 ##### Plot abundance, biomass, and abundance*biomass #####
