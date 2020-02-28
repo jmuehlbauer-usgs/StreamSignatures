@@ -49,11 +49,13 @@ trop <- substr(bugs1$Group, 1, 2)
 bugs1$Trophic <- ifelse(trop == 'Pr', 2, ifelse(trop == 'He', 1, 
 	ifelse(trop == 'Detr' | bugs1$Group == 'AqAlga', 0, 1.5)))
 
-## Drop Code column, rename Dist and Abund columns
+## Drop Code column, rename Dist and Abund columns, add SiteBank column
 bugs2 <- subset(bugs1, select = -Code)
-colnames(bugs2)[which(colnames(bugs2) %in% c('Dist', 'Abund'))] <- c('Distance', 'Abundance')
-			
-			
+	colnames(bugs2)[which(colnames(bugs2) %in% c('Dist', 'Abund'))] <- c('Distance', 'Abundance')
+	bugs2$SiteBank <- as.factor(paste0(substr(bugs2$Site, 1, 5), bugs2$Bank))
+bugs3 <- bugs2[, c(1:2, dim(bugs2)[2], 3:(dim(bugs2)[2] - 1))]		
+	
+	
 ##### Clean up env datasheet #####
 
 ## Set stream order and banks to factors
@@ -61,75 +63,71 @@ env1$Order <- as.factor(env1$Order)
 env1$Bank <- as.factor(ifelse(env1$Bank == 'Left', 'LB', 'RB'))
 
 ## Add sites for subset sites with similar conditions
-esites <- env1[env1$Site == 'BALL1' | env1$Site == 'COWE1' | env1$Site == 'LTEN1',]
-	esites$Site<-c('BALL2', 'BALL2', 'COWE2', 'COWE2', 'LTEN2')
-	
-## Rename columns
+esites <- env1[env1$Site %in% c('BALL1', 'COWE1', 'LTEN1'),]
+	esites$Site<-as.factor(c('BALL2', 'BALL2', 'COWE2', 'COWE2', 'LTEN2'))
 env2 <- rbind(env1, esites)
-	colnames(env2) <- c('Site', 'Bank', 'Region', 'Width', 'Order', 'OrderClass', 'Geomorph', 'BankType', 'VegFlood', 'VegUp', 'VegShift', 'Location')
+	
+## Rename columns, add SiteBank column
+colnames(env2) <- c('Site', 'Bank', 'Region', 'Width', 'Order', 'OrderClass', 'Geomorph', 
+	'BankType', 'VegFlood', 'VegUp', 'VegShift', 'Location')
+	env2$SiteBank <- as.factor(paste0(substr(env2$Site, 1, 5), env2$Bank))
+env3 <- env2[, c(1:2, dim(env2)[2], 3:(dim(env2)[2] - 1))]
 
-## Add rows for in-stream samples
-aqs <- env2[unique(match(env2$Site, levels(env2$Site))),]
-	aqs$Bank <- 'AQ'
-	aqs[, c('BankType', 'VegFlood', 'VegUp', 'VegShift')] <- NA
-env3 <- rbind(env2, aqs)
-
-## Order by region, then site, then bank
-env3 <- env3[order(env3$Region, env3$Site, env3$Bank),]
+## Add rows for in-stream samples, island banks
+not1 <- paste0(rep(levels(env3$Site), 3), c('AQ', 'LB', 'RB'))
+not2 <- not1[!(not1 %in% env3$SiteBank)]
+not3 <- env2[match(substr(not2, 1, 5), env2$Site),]
+	not3$Bank <- substr(not2, 6, 7)
+	not3[, c('BankType', 'VegFlood', 'VegUp', 'VegShift')] <- NA
+env4 <- rbind(env3, not3)
+	env4$SiteBank <- as.factor(paste0(substr(env4$Site, 1, 5), env4$Bank))
 
 
 ##### Combine env data with abundance table #####
 
-## Create key
-bugs1$Key <- paste0(bugs1$Site, bugs1$Bank)
-env3$Key <- paste0(env3$Site, env3$Bank)
-bugs2 <- merge(bugs1, env3, by = 'Key', all = TRUE)
-bugs2<-bugs1
-### STOPPED HERE. Above 20-ish lines are in progress.
-	## Need to figure out how/if to do merge, given Aq samples and island sites
-		##(FELL1.1, etc). Did I assess bank steepness and veg on island bars?
-	## Final merged datasheet should have same # of rows as bugs1.
-	## Also, why does env3 have double rows for Aq sites?
-	## Need to re-order factor levels for site after adding esites.
+## Merge based on SiteBank
+mega1 <- merge(bugs3, env4, by = 'SiteBank')
+	## Cuts out Mud Creek and Haw River (NC piedmont) sites that lack context.
+
+## Cut duplicate columns
+mega1 <- mega1[, !colnames(mega1) %in% c('Site.y', 'Bank.y')]
+	colnames(mega1)[which(colnames(mega1) %in% c('Site.x', 'Bank.x'))] <- c('Site', 'Bank')
+
+## Order by site, then bank, distance, group, replicate.
+mega1 <- with(mega1, mega1[order(Site, Bank, Distance, Group, Replicate),])
+
+## Re-order some alphabetical factor levels into sensible order
+mega1$Group <- factor(mega1$Group, levels = c('AeAqEp', 'AeAqPl', 'AeAqTr', 'AeAqDi', 'AeAqOd', 'AqEphe',
+	'AqPlec', 'AqTric', 'AqMisc', 'AeLepi', 'HeHemi', 'HeLepi', 'TeMisc', 'PrBeet', 'PrSpHu', 'PrSpWe'))
+mega1$Region <- factor(mega1$Region, levels = c('Coweeta', 'Elbe', 'Danube', 'Tagliamento'))
+mega1$Geomorph <- factor(mega1$Geomorph, levels = c('Straight', 'Meandering', 'Point bars', 'Braided'))
+mega1$BankType <- factor(mega1$BankType, levels = c('Gradual', 'Steep', 'Terrace', 'Levee'))
+mega1$VegFlood <- factor(mega1$VegFlood, levels = c('Barren', 'Understory', 'Overstory'))
+mega1$VegUp <- factor(mega1$VegUp, levels = c('Understory', 'Overstory'))
+mega1$VegShift <- factor(mega1$VegShift, levels = levels(mega1$VegShift)[c(3, 2, 1, 5, 4)])
 
 
-m1<-match(substr(bugs2[,2],1,5),env2[,1])
-	bugs2$Region<-env2$Region[m1]
-	bugs2$Width<-env2$Channel.width[m1]
-	bugs2$WidthClass<-env2$Width.class[m1]		
-	bugs2$Order<-env2$Order[m1]
-	bugs2$OrderClass<-env2$Order.class[m1]
-	bugs2$Geomorph<-env2$Geomorphology[m1]
-m2<-match(paste(substr(bugs2$Site,1,5),substr(bugs2$Bank,1,1)),paste(env2$Site,substr(env2$Bank,1,1)))	
-	bugs2$Banks<-env2$Bank.type[m2]
-	bugs2$VegFld<-env2$Floodplain.vegetation[m2]
-	bugs2$VegUp<-env2$Upland.vegetation[m2]
-	bugs2$VegShift<-env2$Vegetation.shift[m2]
+##### Consolidate merged data to just dataset of interest for analysis #####
 
-##### Create datasheet for plotting and analysis #####
-	
-## Get rid of NAs
-mega1<-droplevels(bugs3[!is.na(bugs3$Dist)&!is.na(bugs3$Bank),])
+## Get rid of NA distances, AQ banks
+mega2 <- mega1[mega1$Bank != 'AQ' & !(is.na(mega1$Distance)),]
+aq1 <- mega1[mega1$Bank == 'AQ' | is.na(mega1$Distance),]
+	aq1 <- droplevels(aq1)
 
-## Get rid of all sites with islands
-mega2<-mega1[!substr(mega1$Site,1,5)=='CORN1'&!substr(mega1$Site,1,5)=='DANU1'&!substr(mega1$Site,1,5)=='ELBE1'&!substr(mega1$Site,1,5)=='FELL1'&!substr(mega1$Site,1,5)=='ISLA1'&!substr(mega1$Site,1,5)=='RESI1'&!substr(mega1$Site,1,5)=='RESI5',]
+## Assign true conditions to braided islands, remove internal braids
+sb1 <- paste0(mega2$Site, mega2$Bank)
+ext1 <- c('CORN1.1RB', 'CORN1.6LB', 'DANU1.2RB', 'ELBE1.2LB', 'FELL1.1RB', 'ISLA1.1RB', 'ISLA1.7LB',
+	'RESI1.1RB', 'RESI1.2LB', 'RESI5.1RB', 'RESI5.2LB')
+int1 <- unique(sb1[nchar(as.character(mega2$Site)) > 5 & !(sb1 %in% ext1)])
+mega2[sb1 %in% int1, c('BankType', 'VegFlood', 'VegUp', 'VegShift')] <- NA	
+mega3 <- mega2[!(sb1 %in% int1),]
+	mega3$Site <- as.factor(substr(mega3$Site, 1, 5))
+br1 <- mega2[sb1 %in% int1,]
+	br1 <- droplevels(br1)
+isla1 <- mega2[nchar(sb1) > 7,]
+	isla1 <- droplevels(isla1)
+### STOPPED HERE.
 
-## Add true banks of island sites back in
-mega2.1<-rbind(mega2,mega1[
-	substr(mega1$Code,1,10)=='CORN1.1-RB'|
-		substr(mega1$Code,1,10)=='CORN1.6-LB'|
-	substr(mega1$Code,1,10)=='DANU1.2-RB'|
-	substr(mega1$Code,1,10)=='ELBE1.2-LB'|
-	substr(mega1$Code,1,10)=='FELL1.1-RB'|
-	substr(mega1$Code,1,10)=='ISLA1.1-RB'|
-		substr(mega1$Code,1,10)=='ISLA1.7-LB'|
-	substr(mega1$Code,1,10)=='RESI1.1-RB'|
-	substr(mega1$Code,1,10)=='RESI1.2-LB'|
-	substr(mega1$Code,1,10)=='RESI5.1-RB'|
-		substr(mega1$Code,1,10)=='RESI5.2-LB',])
-
-## Rearrange alphabetically for ease
-mega2.1<-droplevels(mega2.1[order(mega2.1$Code),])
 
 ## Get rid of non-predator groups and night/malaise/ground sampling
 mega3<-droplevels(mega2.1[mega2.1$Trophic==2&mega2.1$Method!='Night Sampling'&mega2.1$Method!='Malaise'&mega2.1$Method!='Ground',])
