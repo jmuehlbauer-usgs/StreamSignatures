@@ -12,7 +12,8 @@
 	
 signatures <- function(dat, effVar, distVar, siteVar, otherVars){
 	## Load required libraries
-	packload('MuMIn', 'lme4')
+	require('MuMIn')
+	require('lme4')
 	## Make variables
 	perc <- dat[, effVar]
 	dstn <- dat[, distVar]

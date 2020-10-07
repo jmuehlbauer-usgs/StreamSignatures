@@ -1,5 +1,5 @@
 ##### Signatures function to create stream signatures from data #####
-	## Last modified 2020-02-14 by J.D. Muehlbauer
+	## Last modified 2020-10-01 by J.D. Muehlbauer
 	
 	
 ## Function computes 50 and 10% stream signatures from model data
@@ -15,12 +15,10 @@
 	
 signatures <- function(dat, effVar, distVar, siteVar, otherVars){
 	## Load required libraries
-	#if(!'packload' %in% lsf.str()){
-	#	source('https://github.com/jmuehlbauer-usgs/R-packages/blob/master/packload.r?raw=TRUE')
-	#}
-	#packload(c('MuMIn', 'lme4'))
-	require(MuMIn)
-	require(lme4)
+	if(!'packload' %in% lsf.str()){
+		source('https://github.com/jmuehlbauer-usgs/R-packages/blob/master/packload.r?raw=TRUE')
+	}
+	packload(c('MuMIn', 'lme4'))
 	## Make variables
 	perc <- dat[, effVar]
 	dstn <- dat[, distVar]
@@ -29,6 +27,10 @@ signatures <- function(dat, effVar, distVar, siteVar, otherVars){
 	out0 <- lmer(perc ~ dstn + (1 | strm), REML = FALSE)
 	l1 <- list()
 	for(i in 1 : length(otherVars)){
+		if(class(dat[, otherVars[i]]) != 'factor'){
+			warning(paste0('Coercing variable "', otherVars[i], '" to a factor.\n  If the function crashes or errors out, consider removing this variable.'))
+			dat[, otherVars[i]] <- as.factor(dat[, otherVars[i]])
+		}
 		vble <- dat[, otherVars[i]]
 		l1[[i]] <- lmer(perc ~ dstn + vble + (1 | strm), REML = FALSE)
 		l1[[i + length(otherVars)]] <- lmer(perc ~ dstn * vble + (1 | strm), REML = FALSE)
